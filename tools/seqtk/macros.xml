@@ -1,0 +1,36 @@
+<macros>
+    <xml name="requirements">
+        <requirements>
+        <requirement type="package" version="@TOOL_VERSION@">seqtk</requirement>
+            <yield/>
+        </requirements>
+    </xml>
+    <xml name="citations">
+        <citations>
+            <citation type="bibtex">
+                @article{Shen2016,
+                    doi = {10.1371/journal.pone.0163962},
+                    url = {https://doi.org/10.1371/journal.pone.0163962},
+                    year = {2016},
+                    month = oct,
+                    publisher = {Public Library of Science ({PLoS})},
+                    volume = {11},
+                    number = {10},
+                    pages = {e0163962},
+                    author = {Wei Shen and Shuai Le and Yan Li and Fuquan Hu},
+                    editor = {Quan Zou},
+                    title = {{SeqKit}: A Cross-Platform and Ultrafast Toolkit for {FASTA}/Q File Manipulation},
+                    journal = {{PLOS} {ONE}}
+                  }
+            </citation>
+            <yield />
+        </citations>
+    </xml>
+    <xml name="biotools">
+        <xrefs>
+            <xref type="bio.tools">seqtk</xref>
+        </xrefs>
+    </xml>
+    <token name="@TOOL_VERSION@">1.3</token>
+    <token name="@VERSION_SUFFIX@">0</token>
+</macros>
