@@ -1,36 +1,104 @@
-<tool id="redundans" name="Redundans" version="0.1.0+galaxy0" python_template_version="3.5" profile="21.05">
+<tool id="redundans" name="Redundans" version="@TOOL_VERSION@+galaxy@VERSION_SUFFIX@" profile="21.05">
+    <description>assembly of heterozygous genomes</description>
+    <macros>
+        <token name="@TOOL_VERSION@">0.14a</token>
+        <token name="@VERSION_SUFFIX@">0</token>
+    </macros>
     <requirements>
+        <container type="docker">lpryszcz/redundans:v@TOOL_VERSION@</container>
     </requirements>
     <command detect_errors="exit_code"><![CDATA[
-        redundans.py
-        --fastq $input
-        $log
+            #if $short_reads.selector == 'enabled'
+                #set $sreads = '" "'.join( [ str( $x ) for $x in $short_reads.fastq ] )
+            #end if
+
+            pwd &&
+            /root/src/redundans/redundans.py
+            --fasta '$fasta'
+            #if $short_reads.selector == 'enabled'
+                --fastq #echo $sreads
+            #end if
+            #if $longreads
+                --longreads #echo " ".join('${longreads}')
+            #end if
+            $log
+            --threads \${GALAXY_SLOTS:-4}
+            $nogapclosing
+            #if str( $short_reads.selector ) == "disabled":
+                --noscaffolding
+            #elif str( $short_reads.selector ) == "enabled":
+                --fastq '$short_reads.fastq'
+                --joins $short_reads.joins
+                --linkratio $short_reads.linkratio
+                --limit $short_reads.limit
+                --mapq $short_reads.mapq
+                --iters $short_reads.iters
+            #end if
+            #if str( $reference_file.selector ) == "enabled":
+                --reference '$reference_file.reference'
+                $reference_file.norearrangements
+            #end if
+            #if str( $reduction_options.selector ) == "false":
+                --noreduction
+            #elif str( $reduction_options.selector ) == "true":
+                --identity $reduction_options.identity
+                --overlap $reduction_options.overlap
+                --minLength $reduction_options.minLength
+            #end if
+
     ]]></command>
     <inputs>
-    <param argument="--fastq" type="data" format="fastq" multiple="true" label="FASTQ input" help="TODO" />
-    <param argument="--fasta" type="data" format="fasta" label="FASTA input" help="TODO" />
-    <param argument="--log" type="boolean" truevalue="--log logfile.txt" falsevalue="" checked="false" label="Log output" help="TODO" />
-    <param argument="--limit" type="float" min="0" max="1" value="" optional="true" label="" help="TODO" />
-    <conditional name="reduction_options">
-        <param name="reduction_option" type="select" label="choose reduction option" help="TODO">
-            <option value="false">Disabled</option>
-            <option value="true">Enabled</option>
-        </param>
-        <when value="false">
-            
-        </when>
-        <when value="true">
-            <param argument="--identity" type="float" min="0" max="1" value="0.51" label="Identity" help="TODO" />
-            <param argument="--overlap" type="float" min="0" max="0.8" value="" label="Overlap" help="TODO" />
-            <param argument="--minLength" type="integer" min="0" max="200" value="" label="MinLength" help="TODO" />
-        </when>
-    </conditional>
+        <param argument="--fasta" type="data" format="fasta" label="FASTA file with contigs/scaffolds" help="MP or PE reads" />
+        <conditional name="short_reads">
+            <param name="selector" type="select" label="Short-read scaffolding">
+                <option value="disabled">Disabled</option>
+                <option value="enabled">Enabled</option>
+            </param>
+            <when value="disabled"/>
+            <when value="enabled">
+                <param argument="--fastq" type="data" format="fastq,fastq.gz,fastqsanger,fastqsanger.gz" multiple="true" label="FASTQ Illumina short reads"
+                    help="FASTQ file(s) with short-reads for performing short-read scaffolding"/>
+                <param argument="--joins" type="integer" min="1" value="5" label="Joins" help="Min pairs to join contigs" />
+                <param argument="--linkratio" type="float" min="0" max="1" value="0.7" label="Link ratio" help="Max link ratio between two best contig pairs" />
+                <param argument="--limit" type="float" min="0" max="1" value="0.2" label="Limit" help="Align subset of reads" />
+                <param argument="--mapq" type="integer" min="0" value="10" label="Min mapping quality"/>
+                <param argument="--iters" type="integer" min="1" value="2" label="Iterations" help="Iterations per library" />
+            </when>
+        </conditional>
+        <param argument="--longreads" type="data" format="fastq,fastq.gz,fastqsanger,fastqsanger.gz" multiple="true" optional="true" label="FASTQ long reads"
+            help="FASTQ file(s) with long-reads for performing long-read scaffolding"/>
+        <conditional name="reference_file">
+            <param name="selector" type="select" label="Reference-based scaffolding">
+                <option value="disabled">Disabled</option>
+                <option value="enabled">Enabled</option>
+            </param>
+            <when value="disabled"/>
+            <when value="enabled">
+                <param argument="--reference" type="data" format="fasta" label="Reference file" help="Reference FASTA file for performing reference-based scaffolding" />
+                <param argument="--norearrangements" type="boolean" truevalue="--norearrangements" falsevalue="" checked="false" label="Hight identity mode" help="Rearragements not allowed" />
+            </when>
+        </conditional>
+        <conditional name="reduction_options">
+            <param name="selector" type="select" label="Reduction step">
+                <option value="false">Disabled</option>
+                <option value="true">Enabled</option>
+            </param>
+            <when value="false"/>
+            <when value="true">
+                <param argument="--identity" type="float" min="0" max="1" value="0.51" label="Identity" help="Minimum identity" />
+                <param argument="--overlap" type="float" min="0" max="1" value="0.8" label="Overlap" help="Minimum overlap" />
+                <param argument="--minLength" type="integer" min="0" value="200" label="MinLength" help="Minimum contig length" />
+            </when>
+        </conditional>
+        <param argument="--nogapclosing" type="boolean" truevalue="" falsevalue="--nogapclosing" checked="false" label="No gap closing"/>
+        <param argument="--log" type="boolean" truevalue="--log logfile.txt" falsevalue="" checked="false" label="Generate log output"/>
+        <!-- -usebwa , no rearrangements missing|change max instead "100"| De novo stuff?-->
     </inputs>
     <outputs>
-    
+        <data name="test" format="txt" label="${tool.name} on ${on_string}: test"/>
     </outputs>
     <tests>
-        
+
     </tests>
     <help><![CDATA[
         TODO: Fill in help.
