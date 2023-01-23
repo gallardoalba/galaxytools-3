@@ -1,19 +1,16 @@
 <tool id="redundans" name="Redundans" version="@TOOL_VERSION@+galaxy@VERSION_SUFFIX@" profile="21.05">
     <description>assembly of heterozygous genomes</description>
     <macros>
-        <token name="@TOOL_VERSION@">0.14a</token>
-        <token name="@VERSION_SUFFIX@">0</token>
+        <import>macros.xml</import>
     </macros>
-    <requirements>
-        <container type="docker">lpryszcz/redundans:v@TOOL_VERSION@</container>
-    </requirements>
+    <expand macro="requirements" />
     <command detect_errors="exit_code"><![CDATA[
             #if $short_reads.selector == 'enabled'
                 #set $sreads = '" "'.join( [ str( $x ) for $x in $short_reads.fastq ] )
             #end if
 
             pwd &&
-            /root/src/redundans/redundans.py
+            python /root/src/redundans/redundans.py
             --fasta '$fasta'
             #if $short_reads.selector == 'enabled'
                 --fastq #echo $sreads
@@ -38,9 +35,9 @@
                 --reference '$reference_file.reference'
                 $reference_file.norearrangements
             #end if
-            #if str( $reduction_options.selector ) == "false":
+            #if str( $reduction_options.selector ) == "disabled":
                 --noreduction
-            #elif str( $reduction_options.selector ) == "true":
+            #elif str( $reduction_options.selector ) == "enabled":
                 --identity $reduction_options.identity
                 --overlap $reduction_options.overlap
                 --minLength $reduction_options.minLength
@@ -80,11 +77,11 @@
         </conditional>
         <conditional name="reduction_options">
             <param name="selector" type="select" label="Reduction step">
-                <option value="false">Disabled</option>
-                <option value="true">Enabled</option>
+                <option value="disabled">Disabled</option>
+                <option value="enabled" selected="true">Enabled</option>
             </param>
-            <when value="false"/>
-            <when value="true">
+            <when value="disabled"/>
+            <when value="enabled">
                 <param argument="--identity" type="float" min="0" max="1" value="0.51" label="Identity" help="Minimum identity" />
                 <param argument="--overlap" type="float" min="0" max="1" value="0.8" label="Overlap" help="Minimum overlap" />
                 <param argument="--minLength" type="integer" min="0" value="200" label="MinLength" help="Minimum contig length" />
@@ -92,15 +89,46 @@
         </conditional>
         <param argument="--nogapclosing" type="boolean" truevalue="" falsevalue="--nogapclosing" checked="false" label="No gap closing"/>
         <param argument="--log" type="boolean" truevalue="--log logfile.txt" falsevalue="" checked="false" label="Generate log output"/>
-        <!-- -usebwa , no rearrangements missing|change max instead "100"| De novo stuff?-->
     </inputs>
     <outputs>
-        <data name="test" format="txt" label="${tool.name} on ${on_string}: test"/>
+        <data name="contigs" format="fasta" from_work_dir="contigs.fa" label="${tool.name} on ${on_string}: contigs"/>
+        <data name="contigs_reduced" format="fasta" from_work_dir="contigs.reduced.fa" label="${tool.name} on ${on_string}: contigs reduced"> 
+            <filter>reduction_options['selector'] == 'enabled'</filter>
+        </data>
+        <data name="scaffolds" format="fasta" from_work_dir="scaffolds.fa" label="${tool.name} on ${on_string}: scaffolds"/>
+        <data name="scaffolds_filled" format="fasta" from_work_dir="scaffolds.fa" label="${tool.name} on ${on_string}: scaffolds">
+            <filter>nogapclosing == 'false'</filter>
+        </data>
+        <data name="scaffolds_reduced" format="fasta" from_work_dir="scaffolds.fa" label="${tool.name} on ${on_string}: scaffolds">
+            <filter>reduction_options['selector'] == 'enabled'</filter>
+        </data>
     </outputs>
     <tests>
-
+        <test expect_num_outputs="5">
+            <param name="fasta" value="contigs.fa"/>
+            <param name="nogapclosing" value="false"/>
+            <conditional name="short_reads">
+                <param name="selector" value="enabled"/>
+                <param name="fastq" value="5000_1.fq.gz,5000_2.fq.gz"/>
+            </conditional>
+            <output name="contigs" file="test01_contigs.fa" ftype="fasta"/>
+            <output name="contigs_reduced" file="contigs_reduced.fasta" ftype="fasta"/>
+            <output name="scaffolds" file="scaffolds.fa" ftype="fasta"/>
+            <output name="scaffolds_filled" file="scaffolds_filled.fasta" ftype="fasta"/>
+            <output name="scaffolds_reduced" file="scaffolds_reduced.fasta" ftype="fasta"/>
+        </test>
     </tests>
     <help><![CDATA[
-        TODO: Fill in help.
+
+
+.. class:: infomark
+
+**Purpose**
+
+Redundans pipeline assists an assembly of heterozygous genomes. Program takes as input assembled contigs, sequencing libraries and/or reference sequence and returns scaffolded 
+homozygous genome assembly. Final assembly should be less fragmented and with total size smaller than the input contigs. In addition, Redundans will automatically close the gaps 
+resulting from genome assembly or scaffolding.
+
     ]]></help>
+    <expand macro="citations" />
 </tool>
